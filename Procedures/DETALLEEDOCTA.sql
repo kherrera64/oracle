@@ -1,0 +1,65 @@
+/*
+  Autor:        Andrea Alvarado
+  Fecha:        11/12/2013
+  Descripción:  Devuelve un detalle del estado de cuenta detallado para mostrar 
+  en el reporte de estado de cuenta.
+  
+  Modificacion: KHERRERA - 19/12/2014 - Se filtra por carrera_sede y si no
+                se encuentran por carrera.
+  */
+
+PROCEDURE DETALLEEDOCTA
+(
+  PCARNET DBAFISICC.CAALUMNOSTB.CARNET%TYPE,
+  PCARRERA DBAFISICC.CACARRERASTB.CARRERA%TYPE,
+  PFECHAIMP VARCHAR2,
+  RETVAL    OUT SYS_REFCURSOR
+) IS 
+
+BEGIN 
+  IF PFECHAIMP = 'ACTUAL' THEN
+    OPEN RETVAL FOR 
+      SELECT A.CARNET, NVL(A.CENTRO,A.CARRERA) CARRERA, A.FECHA, 
+             TO_NUMBER(A.CORRELATIVO) CORRELATIVO,
+             LPAD(NVL(A.OPERACION,A.CORRELATIVO), 10, '0') DOCUMENTO,A.CODMOVTO,
+             B.MOVIMIENTO,A.CURSO, 
+             DECODE(A.FRACCION,NULL,'', A.FRACCION||' / '||A.INI_FRAC) FRACCION,  
+             TO_CHAR(DECODE (A.CARGO_ABONO, 'C', A.MONTO),'999,999.99') CARGO, 
+             TO_CHAR(DECODE (A.CARGO_ABONO, 'A', A.MONTO),'999,999.99') ABONO,
+             TO_CHAR((
+               SELECT SUM(NVL(DECODE(C.CARGO_ABONO, 'C',C.MONTO,-C.MONTO),0)) 
+                        FROM DBAFISICC.CCEDOCTATB C 
+                        WHERE C.FECHA<=A.FECHA
+                        AND C.CORRELATIVO<=A.CORRELATIVO 
+                        AND C.CARNET=A.CARNET 
+                        AND NVL(A.CENTRO,C.CARRERA)=NVL(A.CENTRO,A.CARRERA)),
+                        '999,999.99') SALDO
+          FROM DBAFISICC.CCEDOCTATB A, DBAFISICC.CCTIPOMOVTOTB B
+          WHERE A.CODMOVTO=B.CODMOVTO
+          AND  A.CARNET = PCARNET
+          AND NVL(A.CENTRO, A.CARRERA) = PCARRERA;
+      
+  ELSE 
+    OPEN RETVAL FOR
+      SELECT A.CARNET, NVL(A.CENTRO,A.CARRERA) CARRERA, A.FECHA, 
+             TO_NUMBER(A.CORRELATIVO) CORRELATIVO,
+             LPAD(NVL(A.OPERACION,A.CORRELATIVO), 10, '0') DOCUMENTO,A.CODMOVTO,
+             B.MOVIMIENTO,A.CURSO, 
+             DECODE(A.FRACCION,NULL,'', A.FRACCION||' / '||A.INI_FRAC) FRACCION,   
+             TO_CHAR(DECODE (A.CARGO_ABONO, 'C', A.MONTO),'999,999.99') CARGO, 
+             TO_CHAR(DECODE (A.CARGO_ABONO, 'A', A.MONTO),'999,999.99') ABONO,
+             TO_CHAR((
+                 SELECT SUM(NVL(DECODE (C.CARGO_ABONO, 'C',C.MONTO,-C.MONTO),0)) 
+                        FROM DBAFISICC.CCHEDOCTATB C 
+                        WHERE C.FECHA<=A.FECHA
+                        AND C.CORRELATIVO<=A.CORRELATIVO 
+                        AND C.CARNET=A.CARNET 
+                        AND NVL(C.CENTRO, C.CARRERA)=NVL(A.CENTRO,A.CARRERA)),
+                        '999,999.99') SALDO
+        FROM DBAFISICC.CCHEDOCTATB A, DBAFISICC.CCTIPOMOVTOTB B
+        WHERE A.CODMOVTO=B.CODMOVTO
+        AND  A.CARNET = PCARNET
+        AND NVL(A.CENTRO,A.CARRERA) = PCARRERA
+        AND TO_CHAR(A.FECHAIMP,'mm/yyyy') = PFECHAIMP;
+  END IF;
+END DETALLEEDOCTA;

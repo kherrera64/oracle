@@ -1,0 +1,24 @@
+/*
+ Autor: Kevin Herrera
+ FECHA: 06/06/2014
+ Descripcion: Procedimiento que devuelve los usuarios por centro.
+*/
+
+PROCEDURE USUARIOSXCENTRO  
+ (
+   PCENTRO DBAFISICC.CAUSUARIOCENTROSTB.CODIGO%TYPE DEFAULT NULL,
+   RETVAL  OUT SYS_REFCURSOR
+ ) 
+ AS BEGIN    
+ OPEN RETVAL FOR 
+
+       SELECT DISTINCT B.USUARIO, B.NOMBRE, A.CODIGO AS CENTRO, 
+       DECODE(B.ACTIVO, 1, 'Activo', 'Inactivo')  AS STATUS
+          
+           FROM DBAFISICC.CAUSUARIOCENTROSTB A, DBAFISICC.GNUSUARIOSTB B
+           WHERE B.USUARIO = A.USUARIO
+           AND A.CODIGO = PCENTRO
+               
+       ORDER BY USUARIO;
+      
+END USUARIOSXCENTRO;   

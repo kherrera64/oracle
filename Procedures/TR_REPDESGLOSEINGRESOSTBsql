@@ -1,0 +1,149 @@
+/*
+Nombre: TR_REPDESGLOSEINGRESOSTB
+Autor: Edy Cocon
+Fecha: 21/05/2014
+Descripcion: Se utiliza para generar el reporte de ingresos desglosados, 
+             hace un insert a la tabla de repdesgloseingresostb.
+- Modificacion -  Edy Cocon - 09/06/2014 -
+  Descripcion: Se agrego a que puedan enviar varias facultades, directores, 
+               grados, sedes y carreras y se agrega tipo clob para los 
+               parametros.
+- Modificacion -  Kevin Herrera - 02/09/2014 -
+  Descripcion: Se utiliza el campo centro de la tabla CCTRANSACCTB en lugar de 
+               carrera.
+- Modificacion -  Kevin Herrera - 03/11/2014 -
+  Descripcion: Si no tiene centro el recibo se envia a la carrera VT(GENERALES).
+*/
+PROCEDURE TR_REPDESGLOSEINGRESOSTB(
+    PUSUARIO        IN   DBAFISICC.GNUSUARIOSTB.USUARIO%TYPE,
+    PENTIDAD        IN  CLOB  default null,  
+    PDIRECTOR       IN  CLOB  DEFAULT null,  
+    PSEDE           IN  CLOB  default null,  
+    PGRADO          IN  CLOB  default null,  
+    PCARRERA        IN  CLOB  default null,  
+    PCONCEPTO       IN  dbafisicc.ccdetranstb.codmovto%type default null,
+    PTIPO           IN  dbafisicc.cctransacctb.tipo%type default null,
+    PFECHAINI       IN  dbafisicc.cctransacctb.fecha%type default null,
+    PFECHAFIN       IN  dbafisicc.cctransacctb.fecha%type default null,
+    PRECIBO         IN  dbafisicc.cctransacctb.numero%type default null,
+    PRECIBOFIN      IN  dbafisicc.cctransacctb.numero%type default null,
+    PMA             IN  NUMBER default 1,
+    PACCION         VARCHAR2,
+    PSQLCODE   OUT NUMBER
+)IS BEGIN
+IF PACCION = 'I'
+THEN
+INSERT INTO DBAFISICC.repdesgloseingresostb(
+        USUARIO,
+        CODIGO_FACULTAD,
+        FACULTAD,
+        DIRECTOR,
+        SEDE,
+        CODIGO_CARRERA,
+        CARRERA,
+        FECHA,
+        RECIBO,
+        CODIGO_MOVIMIENTO,
+        MOVIMIENTO,
+        CARNET,
+        DTRMONTO,
+        RECIBOS,
+        NOTA_DEBITO_INTERNA,
+        NOTA_CREDITO_INTERNA,
+        NOTA_DEBITO_ANULACION,
+        NOTA_DEBITO_DEVOLUCION,
+        NOTA_DEBITO_CHEQUERECHAZADO,
+        NOTA_CREDITO_CHEQUERECHAZADO,
+        SALDO,
+        DTRTIPO,
+        FECHAORDEN,
+        PERIODOAP
+)select PUSUARIO USUARIO, a.entidad codigo_facultad, b.nombre facultad, 
+               gracad||' '||s.nombre1 ||  ' ' || s.nombre2 ||' '||
+                apellido1 ||' '|| s.apellido2 director,
+              a.comentarios sede, nvl(d.centro,'VT') codigo_carrera,
+              NVL(a.NOMBRE, 'GENERALES') CARRERA,
+              e.fecha fecha, e.numero recibo,
+              e.codmovto codigo_movimiento, g.movimiento, 
+              decode(d.carnet,null,
+                     (SELECT NOMBRE 
+                        FROM DBAFISICC.CCINGRESOSVARIOSTB X
+                        WHERE RECIBO = e.numero),
+                        d.carnet||' '|| (select f.nombre1 || ' ' || f.nombre2 
+                          ||' '|| f.apellido1 ||' '|| f.apellido2
+                                      from dbafisicc.caalumnostb f
+                                        where f.carnet = d.carnet))
+                    CARNET, e.monto dtrmonto,
+				/*ECOCON - 09/05/2014 - Se eliminaron los case*/
+          decode(e.tipo, 'R', E.MONTO, 0) RECIBOS,
+          DECODE(E.TIPO, 'NDT', e.monto*(-1), 0) nota_debito_interna,
+          DECODE(E.TIPO, 'NCT', e.monto, 0) nota_credito_interna,  
+          DECODE(E.TIPO, 'NDA', e.monto*(-1),0) nota_debito_anulacion,
+          DECODE(E.TIPO, 'DI', e.monto*(-1),0) nota_debito_devolucion,
+          DECODE(E.TIPO, 'NDR', e.monto*(-1),0) nota_debito_chequerechazado,
+          DECODE(E.TIPO, 'NCR', e.monto,0) nota_credito_chequerechazado,
+          (DECODE(E.TIPO, 'R', E.MONTO, 0) +
+            DECODE(E.TIPO, 'NDT', E.MONTO*(-1), 0) + 
+            DECODE(E.TIPO, 'NCT', E.MONTO, 0) +
+            DECODE(E.TIPO, 'NDA', E.MONTO*(-1), 0) +
+            DECODE(E.TIPO, 'DI', E.MONTO*(-1), 0) +
+            DECODE(E.TIPO, 'NDR', E.MONTO*(-1),0) +
+            DECODE(E.TIPO, 'NCR', E.MONTO,0) ) SALDO,
+          e.tipo dtrtipo, e.fecha fechaorden, 
+          dbafisicc.edocta.periodo(e.numero) periodoAP
+        from dbafisicc.cacarrerastb a, dbafisicc.gnentidadestb b,
+             dbafisicc.cctransacctb d, dbafisicc.ccdetranstb e, 
+             dbafisicc.cctipomovtotb g, dbafisicc.nopersonaltb s
+          where (a.entidad     IN(SELECT * 
+                          FROM TABLE (split_varchar(PENTIDAD,','))) 
+                              OR PENTIDAD IS NULL)
+          and s.codpers = a.encargado
+          
+          and   nvl(d.centro,'VT')  in (select m.carrera
+                                          from dbafisicc.causuarioscarrerastb m
+                               where (m.usuario = PUSUARIO or PUSUARIO is null))
+          and b.facultad = a.facultad
+          and b.entidad = a.entidad
+          and (a.comentarios IN(SELECT * 
+                                    FROM TABLE (split_varchar(PSEDE,',')))
+                                          OR PSEDE IS NULL)
+          and (nvl(d.centro,'VT') IN(SELECT * 
+                                      FROM TABLE (split_varchar(PCARRERA,','))) 
+                                          OR PCARRERA IS NULL)
+          and nvl(d.centro, 'VT') = a.carrera
+          and (d.tipo =PTIPO or PTIPO is null)
+          and (e.codmovto = PCONCEPTO or PCONCEPTO is null)
+          and  (a.encargado   IN(SELECT * 
+                                  FROM TABLE (split_varchar(PDIRECTOR,','))) 
+                                    OR PDIRECTOR IS NULL)
+          and (a.grado       IN(SELECT * 
+                                  FROM TABLE (split_varchar(PGRADO,','))) 
+                                        OR PGRADO IS NULL)
+          and (e.numero in (select z.numero
+                               from dbafisicc.cctransacctb z
+                               where z.numero = e.numero
+                               and z.tipo = 'R'
+                      and z.fecha between PFECHAINI and PFECHAFIN) or PMA = 1)
+          and nvl(d.flagoperado,'O') != 'A'
+          and trunc(d.fecha) between (PFECHAINI) and (PFECHAFIN)
+          and e.fecha = d.fecha
+          and e.tipo = d.tipo
+          and e.numero = d.numero
+          and ((d.numero between PRECIBO AND PRECIBOFIN) 
+          OR (PRECIBO IS NULL AND PRECIBOFIN IS NULL))
+          and g.codmovto = e.codmovto
+       order by a.facultad,a.encargado,a.comentarios,a.carrera,e.fecha,
+                e.numero, e.tipo desc;
+ELSIF PACCION = 'D'
+THEN 
+  DELETE FROM DBAFISICC.repdesgloseingresostb A
+    WHERE A.USUARIO = PUSUARIO;
+END IF;
+
+   PSQLCODE := SQLCODE;       
+  EXCEPTION  
+    WHEN OTHERS  
+    THEN
+        PSQLCODE := SQLCODE; 
+
+END TR_REPDESGLOSEINGRESOSTB;

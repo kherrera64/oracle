@@ -1,0 +1,27 @@
+/*
+Autor:  Kevin Herrera.
+Fecha:  21/07/2014
+Descripcion: Procedimiento que devuelve los datos de asistencia de los 
+             asistentes de catedra. 
+*/
+
+PROCEDURE ASISTENCIA_INFOASISTENTE
+ (
+    PHORARIO  DBAFISICC.RHDOCENTESTB.HORARIO%TYPE DEFAULT NULL,
+    PFECHA    DBAFISICC.RHASISTENCIATB.FECHA%TYPE DEFAULT NULL,
+    PCODPERS  DBAFISICC.RHASISTENCIATB.CODPERS%TYPE DEFAULT NULL,
+    RETVAL    OUT SYS_REFCURSOR
+ )
+  IS BEGIN
+  OPEN RETVAL FOR
+ 
+   SELECT A.AUSENCIA, A.PUNTUALIDAD, A.TIEMPO, A.COMENTARIOS, A.AVISO,
+           A.ATENDIO
+              
+               FROM DBAFISICC.RHASISTENCIATB A 
+               WHERE A.HORARIO= PHORARIO
+               AND TRUNC(A.FECHA) = TRUNC(PFECHA) 
+               AND A.CODPUESTO = '000074' 
+               AND A.CODPERS = PCODPERS; 
+            
+END ASISTENCIA_INFOASISTENTE;               

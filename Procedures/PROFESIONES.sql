@@ -1,0 +1,19 @@
+ /*
+autor: Kevin Herrera
+FECHA: 28/04/2014
+Descripcion: Procedimiento que devuelve los datos de la tabla GNPROFESIONESTB.
+*/
+
+CREATE OR REPLACE PROCEDURE PROFESIONES  
+ (
+   RETVAL  OUT SYS_REFCURSOR
+ ) 
+  AS BEGIN
+  OPEN RETVAL FOR   
+  
+   SELECT CODPROF, DESCRIPCION
+       
+       FROM DBAFISICC.GNPROFESIONESTB
+   ORDER BY CODPROF;
+
+END PROFESIONES;  
